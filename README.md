@@ -1,8 +1,8 @@
-# {{PROJECT_NAME}}
+# Cloud Architecture ETL
 
 Proyecto integrador del módulo Cloud Computing (ITBA).
 
-> **Integrantes:** _completar con los miembros del grupo_
+> **Integrantes:** Gaspar Cartasso
 
 Arquitectura base: VPC + IAM + S3 + Cómputo + Base de datos, todo en LocalStack/Docker (local-first), con AWS real como referencia.
 
