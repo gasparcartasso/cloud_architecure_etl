@@ -10,7 +10,12 @@ venv/
 .env.local
 *.pem
 *.key
-
+userkeys.csv
+userkeys.json
+MyKeyPair.pem
+instance.txt
+ami.txt
+public_ip.txt
 # OS
 .DS_Store
 *.log
