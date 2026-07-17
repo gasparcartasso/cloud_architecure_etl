@@ -5,7 +5,7 @@ Registro de decisiones de arquitectura del proyecto.
 ## Formato (ADR)
 
 ```text
-### 001 - Computo
+001 - Computo
 
 Decision: En que tipo de computo corre mi aplicacion
 Contexto: Ya que el ETL actualmente corre en local y esta dockerizado, la manera mas inmediata para pasarlo a correr en la nube es que se corra en EC2
