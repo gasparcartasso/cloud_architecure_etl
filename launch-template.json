@@ -1,0 +1,6 @@
+{
+  "ImageId": "",
+  "InstanceType": "t3.micro",
+  "KeyName": "MyKeyPair",
+  "SecurityGroupIds": [""]
+}
