@@ -3,20 +3,47 @@ aws configure set aws_access_key_id $(jq -r .AccessKey.AccessKeyId userkeys.json
 aws configure set aws_secret_access_key $(jq -r .AccessKey.SecretAccessKey userkeys.json)
 aws configure set default.region ap-southeast-2
 aws configure set output json
+
 #create an ec2 instance
 #choose AMI
 aws ec2 describe-images \
     --owners amazon \
     --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" \
     --query 'Images[0].ImageId' --output text > ami.txt
+
 #create .pem to access the instance
 rm -f MyKeyPair.pem
 aws ec2 delete-key-pair --key-name MyKeyPair
 aws ec2 create-key-pair --key-name MyKeyPair \
     --query 'KeyMaterial' --output text > MyKeyPair.pem
 chmod 400 MyKeyPair.pem
-#create security 
 
+#create app role
+aws iam create-role \
+  --role-name app-role \
+  --assume-role-policy-document file://trust_policy.json
+
+aws iam put-role-policy \
+  --role-name app-role \
+  --policy-name s3-read-only \
+  --policy-document file://permissions.json
+
+aws iam get-role --role-name app-role
+
+# Check if bucket exists
+BUCKET_NAME="articlewriterstorage-929453768620-ap-southeast-2-an" 
+
+if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+    echo "Bucket $BUCKET_NAME already exists"
+else
+    echo "Creating bucket $BUCKET_NAME..."
+    aws s3api create-bucket \
+        --bucket "$BUCKET_NAME" \
+        --region ap-southeast-2 \
+        --create-bucket-configuration LocationConstraint=ap-southeast-2
+fi
+
+#create security group
 SG_ID=$(aws ec2 describe-security-groups \
     --group-names MySecGroup \
     --query 'SecurityGroups[0].GroupId' \
@@ -34,10 +61,11 @@ else
     echo "Security group already exists: $SG_ID"
 fi
 
+MY_IP="$(curl -s https://checkip.amazonaws.com)"
 # Ensure SSH rule exists
 aws ec2 authorize-security-group-ingress \
     --group-id "$SG_ID" \
-    --protocol tcp --port 22 --cidr 0.0.0.0/0 \
+    --protocol tcp --port 22 --cidr "$MY_IP/32"\
     2>/dev/null || echo "SSH rule already exists"
 
 # Ensure HTTP rule exists
@@ -45,16 +73,35 @@ aws ec2 authorize-security-group-ingress \
     --group-id "$SG_ID" \
     --protocol tcp --port 80 --cidr 0.0.0.0/0 \
     2>/dev/null || echo "HTTP rule already exists"
+#airflow port    
+aws ec2 authorize-security-group-ingress \
+    --group-id "$SG_ID" \
+    --protocol tcp --port 8080 --cidr 0.0.0.0/0 \
+    2>/dev/null || echo "Airflow port already exists"
+
+#instance profile
+aws iam create-instance-profile --instance-profile-name app-instance-profile
+
+aws iam add-role-to-instance-profile \
+  --instance-profile-name app-instance-profile \
+  --role-name app-role
+
+aws iam get-instance-profile --instance-profile-name app-instance-profile
 
 #run instance and capture ID
 USERDATA=$(base64 < userdata.sh | tr -d '\n')
-aws ec2 delete-launch-template --launch-template-name MyLaunchTemplate
+aws ec2 delete-launch-template --launch-template-name MyLaunchTemplate 2>/dev/null || true
+
+aws ec2 delete-launch-template-versions \
+    --launch-template-name MyLaunchTemplate \
+    --versions "1" 2>/dev/null || true
+    
 LT_ID=$(aws ec2 create-launch-template \
     --launch-template-name MyLaunchTemplate \
     --version-description "v1" \
     --launch-template-data "{
         \"ImageId\": \"$(< ami.txt)\",
-        \"InstanceType\": \"t3.micro\",
+        \"InstanceType\": \"t3.small\",
         \"KeyName\": \"MyKeyPair\",
         \"SecurityGroupIds\": [\"$(aws ec2 describe-security-groups --group-names MySecGroup --query 'SecurityGroups[0].GroupId' --output text)\"],
         \"UserData\": \"${USERDATA}\"
@@ -74,10 +121,12 @@ if [ -n "$INSTANCE_IDS" ]; then
 fi
 aws ec2 run-instances \
     --launch-template LaunchTemplateId=$LT_ID,Version=1 \
+    --iam-instance-profile Name=app-instance-profile \
     --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":30}}]' \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=MyInstanceName}]' \
     --query 'Instances[0].InstanceId' \
     --output text > instance.txt
+
 #wait until instance is running
 aws ec2 wait instance-running --instance-ids $(< instance.txt)
 #get public ip of the instance
