@@ -19,9 +19,13 @@ aws ec2 create-key-pair --key-name MyKeyPair \
 chmod 400 MyKeyPair.pem
 
 #create app role
-aws iam create-role \
-  --role-name app-role \
-  --assume-role-policy-document file://trust_policy.json
+if aws iam get-role --role-name app-role >/dev/null 2>&1; then
+    echo "Role app-role already exists"
+else
+    aws iam create-role \
+      --role-name app-role \
+      --assume-role-policy-document file://trust_policy.json
+fi
 
 aws iam put-role-policy \
   --role-name app-role \
@@ -53,15 +57,14 @@ VPC_ID=$(aws ec2 describe-vpcs \
   --filters "Name=tag:Name,Values=$VPC_NAME" \
   --query "Vpcs[0].VpcId" --output text)
 
-if [ -n "$VPC_ID" ]; then
-    echo "Terminating old instance(s): $VPC_NAME"
-    aws ec2 terminate-vpc --vpc-id $VPC_ID
-    aws ec2 wait vpc-terminated --vpc-ids $VPC_ID
+if [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ]; then
+    echo "VPC $VPC_NAME already exists: $VPC_ID"
+else
+    VPC_ID=$(aws ec2 create-vpc \
+        --cidr-block $CIDR_VPC \
+        --tag-specifications "ResourceType=vpc,Tags=[{Key=Name,Value=$VPC_NAME}]" \
+        --query "Vpc.VpcId" --output text)
 fi
-VPC_ID=$(aws ec2 create-vpc \
-    --cidr-block $CIDR_VPC \
-    --tag-specifications "ResourceType=vpc,Tags=[{Key=Name,Value=$VPC_NAME}]" \
-    --query "Vpc.VpcId" --output text)
 aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-hostnames
 aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-support
 
@@ -70,88 +73,141 @@ PUB_SUBNET=$(aws ec2 describe-subnets \
   --filters "Name=vpc-id,Values=$VPC_ID" "Name=cidr-block,Values=$CIDR_PUB" \
   --query "Subnets[0].SubnetId" --output text)
 
-if [ -n "$PUB_SUBNET" ]; then
-    echo "Terminating old instance(s): $$PUB_SUBNET"
-    aws ec2 terminate-subnet --subnet-id $$PUB_SUBNET
-    aws ec2 wait subnet-terminated --subnet-ids $$PUB_SUBNET
+if [ -n "$PUB_SUBNET" ] && [ "$PUB_SUBNET" != "None" ]; then
+    echo "Public subnet already exists: $PUB_SUBNET"
+else
+    PUB_SUBNET=$(aws ec2 create-subnet \
+        --vpc-id $VPC_ID \
+        --cidr-block $CIDR_PUB \
+        --availability-zone $AZ_PUB \
+        --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=PublicSubnet}]" \
+        --query "Subnet.SubnetId" --output text)
 fi
-PUB_SUBNET=$(aws ec2 create-subnet \
-    --vpc-id $VPC_ID \
-    --cidr-block $CIDR_PUB \
-    --availability-zone $AZ_PUB \
-    --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=PublicSubnet}]" \
-    --query "Subnet.SubnetId" --output text)
 
 PRIV_SUBNET=$(aws ec2 describe-subnets \
   --filters "Name=vpc-id,Values=$VPC_ID" "Name=cidr-block,Values=$CIDR_PRIV" \
   --query "Subnets[0].SubnetId" --output text)
 
-if [ -n "$PRIV_SUBNET" ]; then
-    echo "Terminating old instance(s): $$PRIV_SUBNET"
-    aws ec2 terminate-subnet --subnet-id $$PRIV_SUBNET
-    aws ec2 wait subnet-terminated --subnet-ids $$PRIV_SUBNET
+if [ -n "$PRIV_SUBNET" ] && [ "$PRIV_SUBNET" != "None" ]; then
+    echo "Private subnet already exists: $PRIV_SUBNET"
+else
+    PRIV_SUBNET=$(aws ec2 create-subnet \
+        --vpc-id $VPC_ID \
+        --cidr-block $CIDR_PRIV \
+        --availability-zone $AZ_PRIV \
+        --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=PrivateSubnet}]" \
+        --query "Subnet.SubnetId" --output text)
 fi
-  PRIV_SUBNET=$(aws ec2 create-subnet \
-    --vpc-id $VPC_ID \
-    --cidr-block $CIDR_PRIV \
-    --availability-zone $AZ_PRIV \
-    --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=PrivateSubnet}]" \
-    --query "Subnet.SubnetId" --output text)
 
 #internet gateway
 EXISTING_IGW=$(aws ec2 describe-internet-gateways \
   --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
   --query "InternetGateways[0].InternetGatewayId" \
   --output text)
-if [ -n "$EXISTING_IGW" ]; then
-    echo "Terminating old instance(s): $EXISTING_IGW"
-    aws ec2 detach-internet-gateway --internet-gateway-id $EXISTING_IGW --vpc-id $VPC_ID
-    aws ec2 delete-internet-gateway --internet-gateway-id $EXISTING_IGW
+if [ -n "$EXISTING_IGW" ] && [ "$EXISTING_IGW" != "None" ]; then
+    echo "Internet gateway already exists: $EXISTING_IGW"
+    IGW_ID=$EXISTING_IGW
+else
+    IGW_ID=$(aws ec2 create-internet-gateway \
+            --tag-specifications "ResourceType=internet-gateway,Tags=[{Key=Name,Value=${VPC_NAME}-IGW}]" \
+            --query "InternetGateway.InternetGatewayId" --output text)
+    aws ec2 attach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID
 fi
-IGW_ID=$(aws ec2 create-internet-gateway \
-        --tag-specifications "ResourceType=internet-gateway,Tags=[{Key=Name,Value=${VPC_NAME}-IGW}]" \
-        --query "InternetGateway.InternetGatewayId" --output text)
-aws ec2 attach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID
 
-#route table SEGUIR CON ESTOOO #########################################################################################################
+#route table
+RT_PUB=$(aws ec2 describe-route-tables \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=PublicRT" \
+  --query "RouteTables[0].RouteTableId" --output text)
+if [ -n "$RT_PUB" ] && [ "$RT_PUB" != "None" ]; then
+    echo "Public route table already exists: $RT_PUB"
+else
+    RT_PUB=$(aws ec2 create-route-table \
+        --vpc-id $VPC_ID \
+        --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=PublicRT}]" \
+        --query "RouteTable.RouteTableId" --output text)
+
+    aws ec2 create-route \
+      --route-table-id $RT_PUB \
+      --destination-cidr-block 0.0.0.0/0 \
+      --gateway-id $IGW_ID
+    aws ec2 associate-route-table --route-table-id $RT_PUB --subnet-id $PUB_SUBNET
+fi
+
+RT_PRIV=$(aws ec2 describe-route-tables \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=PrivateRT" \
+  --query "RouteTables[0].RouteTableId" --output text)
+if [ -n "$RT_PRIV" ] && [ "$RT_PRIV" != "None" ]; then
+    echo "Private route table already exists: $RT_PRIV"
+else
+    RT_PRIV=$(aws ec2 create-route-table \
+        --vpc-id $VPC_ID \
+        --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=PrivateRT}]" \
+        --query "RouteTable.RouteTableId" --output text)
+
+    # NO se agrega ruta a 0.0.0.0/0 → la subred no llega a Internet 
+    aws ec2 associate-route-table --route-table-id $RT_PRIV --subnet-id $PRIV_SUBNET
+fi
 
 #create security group
-SG_ID=$(aws ec2 describe-security-groups \
-    --group-names MySecGroup \
+SG_ID_PUB=$(aws ec2 describe-security-groups \
+    --filters "Name=group-name,Values=MySecGroupPub" "Name=vpc-id,Values=$VPC_ID" \
     --query 'SecurityGroups[0].GroupId' \
     --output text 2>/dev/null || true)
 
 # If SG does not exist, create it
-if [[ -z "$SG_ID" || "$SG_ID" == "None" ]]; then
-    echo "Creating security group MySecGroup..."
-    SG_ID=$(aws ec2 create-security-group \
-        --group-name MySecGroup \
+if [[ -z "$SG_ID_PUB" || "$SG_ID_PUB" == "None" ]]; then
+    echo "Creating security group MySecGroupPub..."
+    SG_ID_PUB=$(aws ec2 create-security-group \
+        --vpc-id $VPC_ID \
+        --group-name MySecGroupPub \
         --description "Allow SSH and HTTP" \
         --query 'GroupId' \
         --output text)
 else
-    echo "Security group already exists: $SG_ID"
+    echo "Security group already exists: $SG_ID_PUB"
+fi
+#endpoint ec2 to s3
+ENDPOINT_ID=$(aws ec2 describe-vpc-endpoints \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=service-name,Values=com.amazonaws.ap-southeast-2.s3" \
+  --query "VpcEndpoints[0].VpcEndpointId" --output text)
+if [ -n "$ENDPOINT_ID" ] && [ "$ENDPOINT_ID" != "None" ]; then
+    echo "VPC endpoint already exists: $ENDPOINT_ID"
+else
+    aws ec2 create-vpc-endpoint \
+      --vpc-id $VPC_ID \
+      --service-name com.amazonaws.ap-southeast-2.s3 \
+      --vpc-endpoint-type Gateway \
+      --route-table-ids $RT_PRIV
 fi
 
 MY_IP="$(curl -s https://checkip.amazonaws.com)"
 # Ensure SSH rule exists
 aws ec2 authorize-security-group-ingress \
-    --group-id "$SG_ID" \
+    --group-id "$SG_ID_PUB" \
     --protocol tcp --port 22 --cidr "$MY_IP/32"\
     2>/dev/null || echo "SSH rule already exists"
 
 #airflow port    
 aws ec2 authorize-security-group-ingress \
-    --group-id "$SG_ID" \
+    --group-id "$SG_ID_PUB" \
     --protocol tcp --port 8080 --cidr "${MY_IP}/32" \
     2>/dev/null || echo "Airflow port already exists"
 
 #instance profile
-aws iam create-instance-profile --instance-profile-name app-instance-profile
+if aws iam get-instance-profile --instance-profile-name app-instance-profile >/dev/null 2>&1; then
+    echo "Instance profile app-instance-profile already exists"
+else
+    aws iam create-instance-profile --instance-profile-name app-instance-profile
+fi
 
-aws iam add-role-to-instance-profile \
-  --instance-profile-name app-instance-profile \
-  --role-name app-role
+if aws iam get-instance-profile --instance-profile-name app-instance-profile \
+    --query "InstanceProfile.Roles[?RoleName=='app-role']" --output text | grep -q app-role; then
+    echo "Role app-role already attached to app-instance-profile"
+else
+    aws iam add-role-to-instance-profile \
+      --instance-profile-name app-instance-profile \
+      --role-name app-role
+fi
 
 aws iam get-instance-profile --instance-profile-name app-instance-profile
 
@@ -170,7 +226,12 @@ LT_ID=$(aws ec2 create-launch-template \
         \"ImageId\": \"$(< ami.txt)\",
         \"InstanceType\": \"t3.small\",
         \"KeyName\": \"MyKeyPair\",
-        \"SecurityGroupIds\": [\"$(aws ec2 describe-security-groups --group-names MySecGroup --query 'SecurityGroups[0].GroupId' --output text)\"],
+        \"NetworkInterfaces\": [{
+            \"DeviceIndex\": 0,
+            \"SubnetId\": \"$PUB_SUBNET\",
+            \"AssociatePublicIpAddress\": true,
+            \"Groups\": [\"$SG_ID_PUB\"]
+        }],
         \"UserData\": \"${USERDATA}\"
     }" \
     --query 'LaunchTemplate.LaunchTemplateId' \
@@ -207,5 +268,3 @@ while ! nc -zv $(< public_ip.txt) 22 2>/dev/null; do
 done
 #connect to the ec2 instance
 ssh -i MyKeyPair.pem ec2-user@$(< public_ip.txt)
-
-
