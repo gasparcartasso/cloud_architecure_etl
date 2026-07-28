@@ -108,3 +108,8 @@ cd cloud_architecture_etl
 bash setawsintancewithvpc.sh
 ```
 - En caso de que todo haya corrido correctamente, se conectara atravez de ssh con la VM creada para poder checkerar la instancia
+- Dentro de la VM
+```bash
+sudo docker ps
+```
+- Cuando el webserver del airflow aparezca como 'Healthy' -> la UI va a estar disponible en <PUBLIC_IP>:8080
