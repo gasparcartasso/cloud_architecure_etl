@@ -16,6 +16,7 @@ MyKeyPair.pem
 instance.txt
 ami.txt
 public_ip.txt
+subnets.txt
 # OS
 .DS_Store
 *.log
