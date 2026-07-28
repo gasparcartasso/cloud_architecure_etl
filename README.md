@@ -94,3 +94,17 @@ Al final del módulo, este repo debería tener:
 - Repo de demos por clase: [cloud-foundations-lab](https://github.com/maxflorentin/cloud-foundations-lab)
 - AWS Academy Cloud Architecting (Spanish LATAM): los módulos cubren la teoría
 - `cloud-foundations-lab` tiene labs 04 (IAM), 05 (EC2), 06 (S3), 07 (VPC), 08 (RDS) — usar como referencia
+
+---
+
+## Como correr
+
+```bash
+git clone https://github.com/gasparcartasso/cloud_architecure_etl
+cd cloud_architecture_etl
+```
+- Modificar el archivo userkeys.example.json -> userkeys.json e incluir en el archivo las keys faltantes respectivas a tu usuario de AWS
+```bash
+bash setawsintancewithvps.sh
+```
+- En caso de que todo haya corrido correctamente, se conectara atravez de ssh con la VM creada para poder checkerar la instancia
