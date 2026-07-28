@@ -105,6 +105,6 @@ cd cloud_architecture_etl
 ```
 - Modificar el archivo userkeys.example.json -> userkeys.json e incluir en el archivo las keys faltantes respectivas a tu usuario de AWS
 ```bash
-bash setawsintancewithvps.sh
+bash setawsintancewithvpc.sh
 ```
 - En caso de que todo haya corrido correctamente, se conectara atravez de ssh con la VM creada para poder checkerar la instancia
