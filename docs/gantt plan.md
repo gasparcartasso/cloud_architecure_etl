@@ -14,48 +14,24 @@ La migración se estructura en **cuatro (4) etapas correlativas y secuenciales**
 ### Etapa 1: Preparación (Setup / Planificación e Infraestructura)
 * **Objetivo:** Preparar los scripts de aprovisionamiento, construir los artefactos necesarios y validar la configuración de AWS antes de levantar el entorno de computo.
 * **Duración estimada:** 4 días hábiles
-* **Tareas Clave:**
-  1. **Auditoría del ETL Local:** Verificación de contenedores Docker y volúmenes locales actuales.
-  2. **Desarrollo del Script de Despliegue (Bash + AWS CLI):** Escritura de automatización con chequeos de idempotencia para crear `MyVPC` (10.0.0.0/16), subred pública (10.0.1.0/24), subred privada (10.0.2.0/24) y VPC Endpoint a S3.
-  3. **Aprovisionamiento de Seguridad e Identidad:** Configuración del bucket S3 (`articlewriterstorage-...`), creación del rol IAM `app-role` con `s3-read-only` e `app-instance-profile`.
-  4. **Gestión de Credenciales Bootstrap:** Configuración de `userkeys.json` para el script de infraestructura.
-* **Entregables:** Script Bash de despliegue validado, S3 Bucket creado y Roles IAM preparados.
 
 ---
 
 ### Etapa 2: Prueba (Testing / Dry Run en Staging)
 * **Objetivo:** Ejecutar el proceso completo de migración en un entorno de pruebas dentro de AWS para validar la conectividad de la EC2, S3 y la ejecución de DAGs en Airflow.
 * **Duración estimada:** 3 días hábiles
-* **Tareas Clave:**
-  1. **Despliegue de Instancia EC2 de Prueba:** Lanzamiento de la EC2 en la subred pública asociada al `app-instance-profile`.
-  2. **Configuración de Red y Seguridad:** Aplicación del Security Group `MySecGroupPub` filtrando acceso SSH (puerto 22) y Airflow UI (puerto 8080) solo a la IP del operador (`MY_IP/32`).
-  3. **Despliegue de Docker & Apache Airflow:** Levantar el entorno Dockerizado del ETL/Airflow en la EC2.
-  4. **Prueba Piloto de DAGs y S3:** Ejecución de DAGs de prueba verificando la lectura/escritura en S3 vía IAM Role y midiendo latencias con el VPC Endpoint Gateway.
-* **Entregables:** Reporte de ejecución exitosa en staging, logs de Airflow sin errores de autenticación hacia S3.
 
 ---
 
 ### Etapa 3: Corte (Cutover / Go-Live en Producción)
 * **Objetivo:** Transición definitiva del ETL local al entorno productivo en AWS EC2, minimizando la ventana de mantenimiento.
 * **Duración estimada:** 1 día (Fin de semana)
-* **Tareas Clave:**
-  1. **Congelamiento Local (Data Freeze):** Pausar la ejecución de cronjobs/DAGs locales para evitar duplicación de datos.
-  2. **Sincronización Inicial de Datos:** Ejecutar la subida masiva de artefactos históricos/datos desde local hacia el bucket S3 (`articlewriterstorage-...`).
-  3. **Despliegue Definitivo en EC2:** Ejecución final del script Bash para levantar la EC2 productiva y actualizar la IP en `MySecGroupPub`.
-  4. **Activación de Airflow:** Encendido de la UI de Airflow en puerto 8080 y activación (*Unpause*) de los DAGs en producción.
-* **Entregables:** Instancia EC2 productiva ejecutando Airflow y conectada a S3 sin dependencias de credenciales estáticas.
 
 ---
 
 ### Etapa 4: Validación y Soporte Post-Corte (Post-Go-Live)
 * **Objetivo:** Confirmar la estabilidad de los pipelines orquestados, monitorear la salud del contenedor y sanear credenciales del operador.
 * **Duración estimada:** 2 días hábiles
-* **Tareas Clave:**
-  1. **Pruebas de Humo (Smoke Tests):** Verificación de acceso a la UI de Airflow (puerto 8080) e inspección de primeras ejecuciones programadas.
-  2. **Verificación de Almacenamiento en S3:** Confirmar que los artefactos generados por el ETL en EC2 se depositen correctamente en el bucket.
-  3. **Monitoreo de Seguridad:** Confirmar que las solicitudes pasen por el VPC Endpoint y que no existan accesos no autorizados a la EC2.
-  4. **Limpieza de Seguridad:** Resguardo/rotación del archivo de credenciales de bootstrap `userkeys.json` utilizado durante el despliegue.
-* **Entregables:** Reporte de estabilidad del ETL y check de auditoría de seguridad post-despliegue.
 
 ---
 
@@ -83,7 +59,7 @@ La migración se estructura en **cuatro (4) etapas correlativas y secuenciales**
 
 ## 4. Diagrama de Gantt
 
-### Opción A: Diagrama Mermaid 
+### Diagrama Mermaid 
 
 ```mermaid
 gantt
