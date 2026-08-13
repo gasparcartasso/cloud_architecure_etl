@@ -83,7 +83,7 @@ La migración se estructura en **cuatro (4) etapas correlativas y secuenciales**
 
 ## 4. Diagrama de Gantt
 
-### Opción A: Diagrama Mermaid (Para visualizar en Markdown)
+### Opción A: Diagrama Mermaid 
 
 ```mermaid
 gantt
