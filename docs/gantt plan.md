@@ -61,23 +61,23 @@ La migración se estructura en **cuatro (4) etapas correlativas y secuenciales**
 
 ## 3. Matriz de Tiempos y Dependencias (Cronograma)
 
-| ID | Tarea / Etapa | Duración | Inicio | Fin | Dependencia Previa | Título ADR Asociado |
-|:---|:---|:---:|:---:|:---:|:---|:---|
-| **1.0** | **Preparación (Infraestructura & Scripts)** | **4 días** | Día 1 | Día 4 | - | ADR 002, 004, 005, 008 |
-| 1.1 | Script Bash de despliegue y VPC (`MyVPC`) | 2 días | Día 1 | Día 2 | - | ADR 005, 008 |
-| 1.2 | Bucket S3 y Roles IAM (`app-role`) | 1 día | Día 3 | Día 3 | 1.1 | ADR 002, 003 |
-| 1.3 | Configuración de credenciales bootstrap | 1 día | Día 4 | Día 4 | 1.2 | ADR 004 |
-| **2.0** | **Prueba (Dry Run en EC2 Staging)** | **3 días** | Día 5 | Día 7 | **1.0** | ADR 001, 003, 006, 007 |
-| 2.1 | Despliegue de EC2 y Security Group (`MY_IP/32`) | 1 día | Día 5 | Día 5 | 1.3 | ADR 001, 007 |
-| 2.2 | Despliegue de Docker/Airflow en EC2 | 1 día | Día 6 | Día 6 | 2.1 | ADR 001 |
-| 2.3 | Prueba de DAGs, VPC Endpoint y acceso S3 | 1 día | Día 7 | Día 7 | 2.2 | ADR 002, 003, 006 |
-| **3.0** | **Corte (Cutover / Go-Live)** | **1 día** | Día 8 | Día 8 | **2.0** | ADR 001, 007, 008 |
-| 3.1 | Data freeze local y sync a S3 | 0.3 días | Día 8 | Día 8 | 2.3 | ADR 002 |
-| 3.2 | Despliegue final en EC2 y actualización de SG | 0.4 días | Día 8 | Día 8 | 3.1 | ADR 007, 008 |
-| 3.3 | Unpause de DAGs en Airflow (Port 8080) | 0.3 días | Día 8 | Día 8 | 3.2 | ADR 001, 007 |
-| **4.0** | **Validación y Soporte** | **2 días** | Día 9 | Día 10 | **3.0** | ADR 003, 004, 006 |
-| 4.1 | Smoke test UI Airflow y monitoreo S3 | 1 día | Día 9 | Día 9 | 3.3 | ADR 002, 007 |
-| 4.2 | Sanidad de credenciales (`userkeys.json`) | 1 día | Día 10 | Día 10 | 4.1 | ADR 004 |
+| ID | Tarea / Etapa | Duración | Inicio | Fin | Dependencia Previa |
+|:---|:---|:---:|:---:|:---:|:---|
+| **1.0** | **Preparación (Infraestructura & Scripts)** | **4 días** | Día 1 | Día 4 | - |
+| 1.1 | Script Bash de despliegue y VPC (`MyVPC`) | 2 días | Día 1 | Día 2 | - |
+| 1.2 | Bucket S3 y Roles IAM (`app-role`) | 1 día | Día 3 | Día 3 | 1.1 |
+| 1.3 | Configuración de credenciales bootstrap | 1 día | Día 4 | Día 4 | 1.2 |
+| **2.0** | **Prueba (Dry Run en EC2 Staging)** | **3 días** | Día 5 | Día 7 | **1.0** |
+| 2.1 | Despliegue de EC2 y Security Group (`MY_IP/32`) | 1 día | Día 5 | Día 5 | 1.3 |
+| 2.2 | Despliegue de Docker/Airflow en EC2 | 1 día | Día 6 | Día 6 | 2.1 |
+| 2.3 | Prueba de DAGs, VPC Endpoint y acceso S3 | 1 día | Día 7 | Día 7 | 2.2 |
+| **3.0** | **Corte (Cutover / Go-Live)** | **1 día** | Día 8 | Día 8 | **2.0** |
+| 3.1 | Data freeze local y sync a S3 | 0.3 días | Día 8 | Día 8 | 2.3 |
+| 3.2 | Despliegue final en EC2 y actualización de SG | 0.4 días | Día 8 | Día 8 | 3.1 |
+| 3.3 | Unpause de DAGs en Airflow (Port 8080) | 0.3 días | Día 8 | Día 8 | 3.2 |
+| **4.0** | **Validación y Soporte** | **2 días** | Día 9 | Día 10 | **3.0** |
+| 4.1 | Smoke test UI Airflow y monitoreo S3 | 1 día | Día 9 | Día 9 | 3.3 |
+| 4.2 | Sanidad de credenciales (`userkeys.json`) | 1 día | Día 10 | Día 10 | 4.1 |
 
 ---
 
