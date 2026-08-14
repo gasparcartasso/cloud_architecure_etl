@@ -41,11 +41,11 @@ Resultado: Los datos se almacenan en un bucket S3 (articlewriterstorage-...) en 
 ### 003 - Identidad y acceso de la instancia a S3
 
 ```
-Decision: Como se autentica la instancia EC2 para leer/escribir en S3
-Contexto: La aplicacion necesita acceder a S3 sin depender de credenciales estaticas embebidas en la instancia o en el codigo
-Alternativas: Usar un usuario IAM con Access Key/Secret Key hardcodeados en la instancia (via userdata o variables de entorno)
-Tradeoff: Positivo - un IAM Role con Instance Profile entrega credenciales temporales rotadas automaticamente por AWS, sin secretos que gestionar ni filtrar. Negativo - requiere configurar rol, policy e instance profile en vez de simplemente pegar una clave
-Resultado: Se crea el rol app-role con policy s3-read-only, adjunto a la instancia via el instance profile app-instance-profile
+Decision: Cómo se autentica la instancia EC2 para leer/escribir en el bucket S3
+Contexto: La aplicación necesita interactuar con S3 y requiere autenticarse mediante credenciales específicas inyectadas o configuradas en la instancia
+Alternativas: Asignar un IAM Role con Instance Profile a la instancia EC2 para credenciales temporales automáticas
+Tradeoff: Positivo - permite un control directo mediante claves inyectadas/proporcionadas a la EC2 acotadas por una IAM Policy específica. Negativo - al depender de Access Keys/Secret Keys explícitas, requiere gestionar la custodia y posible rotación manual de secretos en la EC2, aumentando el riesgo de fuga si las claves se exponen en el código o en la instancia
+Resultado: La instancia EC2 accede al bucket S3 utilizando Access Key y Secret Key configuradas directamente en la instancia, cuyas acciones están acotadas a través de una IAM Policy de S3
 ```
 
 ### 004 - Credenciales de aprovisionamiento (bootstrap)

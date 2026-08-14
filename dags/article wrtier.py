@@ -12,18 +12,17 @@ from dotenv import load_dotenv
 import json
 import boto3
 
-def get_secret():
+def get_secrets(**context):
     client = boto3.client("secretsmanager", region_name="ap-southeast-2")
     response = client.get_secret_value(SecretId="article_writer_secrets")
     return json.loads(response["SecretString"])
 
-secret = get_secret()
 
 def get_top_feeds(**context):
     url = "https://medium2.p.rapidapi.com/topfeeds/data-science/top_week"
 
     headers = {
-        "x-rapidapi-key": secret['x-rapidapi-key'],
+        "x-rapidapi-key": context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')['x-rapidapi-key'],
     	"x-rapidapi-host": "medium2.p.rapidapi.com",
     	"Content-Type": "application/json"
     }
@@ -37,7 +36,7 @@ def get_my_previous_articles(**context):
     #querystring = {"next":"1625519209064"}
 
     headers = {
-    	"x-rapidapi-key": secret['x-rapidapi-key'],
+    	"x-rapidapi-key": context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')['x-rapidapi-key'],
     	"x-rapidapi-host": "medium2.p.rapidapi.com",
     	"Content-Type": "application/json"
     }
@@ -52,7 +51,7 @@ def get_article_text_top(**context):
         url = f"https://medium2.p.rapidapi.com/article/{article}"
 
         headers = {
-        	"x-rapidapi-key": secret['x-rapidapi-key'],
+        	"x-rapidapi-key": context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')['x-rapidapi-key'],
         	"x-rapidapi-host": "medium2.p.rapidapi.com",
         	"Content-Type": "application/json"
         }
@@ -70,7 +69,7 @@ def get_article_text_previous(**context):
         url = f"https://medium2.p.rapidapi.com/article/{article}"
 
         headers = {
-        	"x-rapidapi-key": secret['x-rapidapi-key'],
+        	"x-rapidapi-key": context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')['x-rapidapi-key'],
         	"x-rapidapi-host": "medium2.p.rapidapi.com",
         	"Content-Type": "application/json"
         }
@@ -84,6 +83,7 @@ def get_article_text_previous(**context):
 def get_article(**context):
     texts = context['task_instance'].xcom_pull(task_ids='body_TOP_10.body_task_TOP_10')
     previous_articles = context['task_instance'].xcom_pull(task_ids='body_previous_articles.body_task_previous_articles')
+    secret = context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')
     client = OpenAI(api_key=secret['openai_api_key'])
     message = client.chat.completions.create(
         max_completion_tokens=2000,
@@ -100,15 +100,16 @@ def get_article(**context):
 
 def save_s3(**context):
     body = context['task_instance'].xcom_pull(task_ids='write_article.write_task')
+    secret = context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')
     aws_access_key_id = secret['aws_access_key_id']
     aws_secret_access_key = secret['aws_secret_access_key']
-
     s3 = boto3.client(
         "s3",
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
         region_name="ap-southeast-2"
     )
+
     unique_id= str(int(datetime.now().timestamp() * 1000))
     data = {"id": unique_id, "text": body}
     s3.put_object(
@@ -124,6 +125,13 @@ with DAG(
     schedule="@daily",
     catchup=False,
 ) as dag:
+
+    # ---- LOAD SECRETS----
+    with TaskGroup("load_secrets") as load_secrets_group:
+        load_secrets_task = PythonOperator(
+            task_id="load_secrets_task",
+            python_callable=get_secrets,
+        )
 
     # ---- EXTRACT TOP 10----
     with TaskGroup("extract_TOP_10") as extract_top_group:
@@ -167,6 +175,7 @@ with DAG(
             python_callable=save_s3,
         )
 
+    load_secrets_group >> [extract_top_group, extract_previous_group]
     extract_top_group >> body_top_group
     extract_previous_group >> body_previous_group
     [body_top_group, body_previous_group] >> write_article_group >> save_s3_group

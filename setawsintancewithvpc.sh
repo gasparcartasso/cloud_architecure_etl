@@ -29,8 +29,8 @@ fi
 
 aws iam put-role-policy \
   --role-name app-role \
-  --policy-name s3-read-only \
-  --policy-document file://permissions.json
+  --policy-name s3-secrets \
+  --policy-document file://iam/permissions.json
 
 aws iam get-role --role-name app-role
 

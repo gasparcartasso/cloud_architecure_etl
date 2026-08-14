@@ -3,14 +3,6 @@
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:ListBucket"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Effect": "Allow",
       "Action": "secretsmanager:GetSecretValue",
       "Resource": "arn:aws:secretsmanager:ap-southeast-2:929453768620:secret:article_writer_secrets-3LvuVD"
     }
