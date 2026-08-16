@@ -100,13 +100,8 @@ def get_article(**context):
 
 def save_s3(**context):
     body = context['task_instance'].xcom_pull(task_ids='write_article.write_task')
-    secret = context['task_instance'].xcom_pull(task_ids='load_secrets.load_secrets_task')
-    aws_access_key_id = secret['aws_access_key_id']
-    aws_secret_access_key = secret['aws_secret_access_key']
     s3 = boto3.client(
         "s3",
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
         region_name="ap-southeast-2"
     )
 

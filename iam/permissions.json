@@ -5,6 +5,11 @@
       "Effect": "Allow",
       "Action": "secretsmanager:GetSecretValue",
       "Resource": "arn:aws:secretsmanager:ap-southeast-2:929453768620:secret:article_writer_secrets-3LvuVD"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::articlewriterstorage-929453768620-ap-southeast-2-an/*"
     }
   ]
 }
